@@ -33,11 +33,7 @@ document.getElementById('login-form').addEventListener('submit', async (event) =
 
     // Fetch authentication options from the server
     const response = await fetch('/webauthn/authenticate/generate-options', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email })
+        method: 'GET'
     });
     const options = await response.json();
 
@@ -45,11 +41,21 @@ document.getElementById('login-form').addEventListener('submit', async (event) =
     const authenticationResponse = await startAuthentication(options);
 
     // Send the authentication response to the server for verification
-    await fetch('/webauthn/authenticate/verify', {
+    const verifyResponse = await fetch('/webauthn/authenticate/verify', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ email, response: authenticationResponse })
+        body: JSON.stringify({ email: email, response: authenticationResponse })
     });
+
+    const verifyResult = await verifyResponse.json();
+
+    if (verifyResponse.ok) {
+        // Handle successful authentication, e.g., store the token
+        console.log('Authentication successful:', verifyResult.token);
+    } else {
+        // Handle authentication failure
+        console.error('Authentication failed:', verifyResult.error);
+    }
 });

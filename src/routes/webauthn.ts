@@ -6,6 +6,8 @@ import {
     verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
 
+const userAuthenticators = new Map<string, any>(); // In-memory storage for user authenticators
+
 export default async function (fastify: FastifyInstance) {
     fastify.post('/webauthn/register/generate-options', async (request, reply) => {
         const { email } = request.body as { email: string };
@@ -49,6 +51,16 @@ export default async function (fastify: FastifyInstance) {
 
             if (verification.verified) {
                 // Save the user and authenticator info to your database here
+                if (verification.registrationInfo) {
+                    userAuthenticators.set(email, {
+                        credentialID: verification.registrationInfo.credential.toString(),
+                        credentialPublicKey: verification.registrationInfo.credential.publicKey.toString(),
+                        counter: verification.registrationInfo.credential.counter,
+                    });
+                } else {
+                    reply.code(400).send({ error: 'Registration info is missing' });
+                    return;
+                }
                 const token = fastify.jwt.sign({ email });
                 return { token };
             } else {
@@ -79,12 +91,22 @@ export default async function (fastify: FastifyInstance) {
         reply.setCookie('currentChallenge', "");
 
         try {
-            // You would typically load this from your database
+            const user = userAuthenticators.get(response.email);
+            if (!user) {
+                reply.code(400).send({ error: 'User not found' });
+                return;
+            }
+
             const mockAuthenticator = {
-                credentialID: Buffer.from('mock-credential-id'),
-                credentialPublicKey: Buffer.from('mock-public-key'),
-                counter: 0,
+                credentialID: Buffer.from(user.credentialID, 'base64'),
+                credentialPublicKey: Buffer.from(user.credentialPublicKey, 'base64'),
+                counter: user.counter,
             };
+
+            if (!response.clientDataJSON || !response.authenticatorData || !response.signature) {
+                reply.code(400).send({ error: 'Invalid response format' });
+                return;
+            }
 
             const webauthnCredential = {
                 id: mockAuthenticator.credentialID.toString('base64'),
