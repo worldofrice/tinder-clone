@@ -40,6 +40,8 @@ document.getElementById('login-form').addEventListener('submit', async (event) =
     // Start the authentication process
     const authenticationResponse = await startAuthentication(options);
 
+    console.log(authenticationResponse);
+
     // Send the authentication response to the server for verification
     const verifyResponse = await fetch('/webauthn/authenticate/verify', {
         method: 'POST',
@@ -51,11 +53,5 @@ document.getElementById('login-form').addEventListener('submit', async (event) =
 
     const verifyResult = await verifyResponse.json();
 
-    if (verifyResponse.ok) {
-        // Handle successful authentication, e.g., store the token
-        console.log('Authentication successful:', verifyResult.token);
-    } else {
-        // Handle authentication failure
-        console.error('Authentication failed:', verifyResult.error);
-    }
+    console.log(verifyResult);
 });

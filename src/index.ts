@@ -18,18 +18,23 @@ declare module 'fastify' {
 }
 
 server.register(require('@fastify/cookie'), {
-    secret: "my-secret", // for cookies signature
-    hook: 'onRequest', // set to false to disable cookie autoparsing or set autoparsing on any of the following hooks: 'onRequest', 'preParsing', 'preHandler', 'preValidation'. default: 'onRequest'
-    parseOptions: {}  // options for parsing cookies
+    secret: process.env.COOKIE_SECRET || "my-secret", 
+    hook: 'onRequest',
+    parseOptions: {}
 })
 
 server.register(fastifySession, {
     secret: process.env.SESSION_SECRET || 'a-very-long-and-secret-keAGFAGAWGAEGAGEAGSy',
-    cookie: { secure: false }
+    cookie: { secure: false, sameSite: 'lax', maxAge: 900000, httpOnly: true },
 });
 
 server.register(fastifyJWT, {
     secret: process.env.JWT_SECRET || 'another-very-long-and-secretAGEGEAGAEG-key'
+});
+
+server.register(fastifyStatic, {
+    root: path.join(__dirname, 'public'),
+    prefix: '/', // optional: default '/'
 });
 
 server.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -41,11 +46,6 @@ server.decorate('authenticate', async (request: FastifyRequest, reply: FastifyRe
 });
 
 server.register(webauthnRoutes); // Register the webauthn routes
-
-server.register(fastifyStatic, {
-    root: path.join(__dirname, 'public'),
-    prefix: '/', // optional: default '/'
-});
 
 server.get('/profile', {
     preHandler: server.authenticate

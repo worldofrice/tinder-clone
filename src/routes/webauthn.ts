@@ -14,7 +14,7 @@ export default async function (fastify: FastifyInstance) {
 
         // Generate registration options
         const options = await generateRegistrationOptions({
-            rpName: 'Your App Name',
+            rpName: 'Tinder Clone',
             rpID: process.env.RP_ID || 'localhost',
             userID: new Uint8Array(Buffer.from(email)),
             userName: email,
@@ -25,7 +25,6 @@ export default async function (fastify: FastifyInstance) {
             },
         });
 
-        // Store the challenge in the session
         reply.setCookie('currentChallenge', options.challenge);
 
         return options;
@@ -53,8 +52,8 @@ export default async function (fastify: FastifyInstance) {
                 // Save the user and authenticator info to your database here
                 if (verification.registrationInfo) {
                     userAuthenticators.set(email, {
-                        credentialID: verification.registrationInfo.credential.toString(),
-                        credentialPublicKey: verification.registrationInfo.credential.publicKey.toString(),
+                        credentialID: Buffer.from(verification.registrationInfo.credential.id).toString('base64'),
+                        credentialPublicKey: Buffer.from(verification.registrationInfo.credential.publicKey).toString('base64'),
                         counter: verification.registrationInfo.credential.counter,
                     });
                 } else {
@@ -62,6 +61,7 @@ export default async function (fastify: FastifyInstance) {
                     return;
                 }
                 const token = fastify.jwt.sign({ email });
+
                 return { token };
             } else {
                 reply.code(400).send({ error: 'Registration failed' });
@@ -85,13 +85,16 @@ export default async function (fastify: FastifyInstance) {
     });
 
     fastify.post('/webauthn/authenticate/verify', async (request, reply) => {
-        const { response } = request.body as { response: any };
+        const { response, email } = request.body as { response: any, email: string };
 
         const expectedChallenge = request.cookies.currentChallenge;
         reply.setCookie('currentChallenge', "");
 
+        console.log("USERS STORE \n", userAuthenticators)
+
         try {
-            const user = userAuthenticators.get(response.email);
+            const user = userAuthenticators.get(email);
+            console.log("user:", user)
             if (!user) {
                 reply.code(400).send({ error: 'User not found' });
                 return;
@@ -103,20 +106,22 @@ export default async function (fastify: FastifyInstance) {
                 counter: user.counter,
             };
 
-            if (!response.clientDataJSON || !response.authenticatorData || !response.signature) {
+            if (!response.response.clientDataJSON || !response.response.authenticatorData || !response.response.signature) {
                 reply.code(400).send({ error: 'Invalid response format' });
                 return;
             }
+
+            console.log(mockAuthenticator)
 
             const webauthnCredential = {
                 id: mockAuthenticator.credentialID.toString('base64'),
                 type: 'public-key',
                 rawId: mockAuthenticator.credentialID,
                 response: {
-                    clientDataJSON: Buffer.from(response.clientDataJSON, 'base64'),
-                    authenticatorData: Buffer.from(response.authenticatorData, 'base64'),
-                    signature: Buffer.from(response.signature, 'base64'),
-                    userHandle: response.userHandle ? Buffer.from(response.userHandle, 'base64') : null,
+                    clientDataJSON: Buffer.from(response.response.clientDataJSON, 'base64'),
+                    authenticatorData: Buffer.from(response.response.authenticatorData, 'base64'),
+                    signature: Buffer.from(response.response.signature, 'base64'),
+                    userHandle: response.response.userHandle ? Buffer.from(response.response.userHandle, 'base64') : null,
                 },
             };
 
@@ -134,7 +139,7 @@ export default async function (fastify: FastifyInstance) {
 
             if (verification.verified) {
                 // Update the authenticator's counter in your database here
-                const token = fastify.jwt.sign({ email: 'user@example.com' });
+                const token = fastify.jwt.sign({ email: email });
                 return { token };
             } else {
                 reply.code(400).send({ error: 'Authentication failed' });
